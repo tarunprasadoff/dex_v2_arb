@@ -17,12 +17,7 @@ contract UniswapCrossFlash {
 
     using SafeERC20 for IERC20;
 
-    struct route {
-        address pair;
-        address router;
-    }
-
-    route[] private addresses;
+    address[] public pairs;
 
     // Token Addresses
     address private DAI; // token0
@@ -31,34 +26,14 @@ contract UniswapCrossFlash {
     //Trade Variables
     uint256 private deadline  = block.timestamp + 10 seconds;
     
-    constructor(address[] memory pairs, address[] memory routers, address _DAI, address _WETH) public {
+    constructor(address[] memory _pairs, address _DAI, address _WETH) public {
 
-        require(pairs.length == routers.length, "Inconsistent length between Pairs and Routers");
+        require(_pairs.length > 0, "Pairs should be more than one");
         
         DAI = _DAI;
         WETH = _WETH;
 
-        for(uint i=0; i < pairs.length; i++){
-            route memory temp;
-            temp.pair = pairs[i];
-            temp.router = routers[i];
-            addresses.push(temp);
-        }
-
-    }
-
-    function getAddresses() public view returns(address[] memory, address[] memory) {
-        
-        address[] memory pairs = new address[](addresses.length);
-        address[] memory routers = new address[](addresses.length);
-        
-        for(uint i=0; i < addresses.length; i++){
-            route memory temp = addresses[i];
-            pairs[i] = temp.pair;
-            routers[i] = temp.router;
-        }
-
-        return (pairs, routers);
+        pairs = _pairs;
 
     }
 
@@ -68,11 +43,11 @@ contract UniswapCrossFlash {
 
     function getReserves() public view returns(uint112[] memory, uint112[] memory) {
         
-        uint112[] memory reserv0s = new uint112[](addresses.length);
-        uint112[] memory reserv1s = new uint112[](addresses.length);
+        uint112[] memory reserv0s = new uint112[](pairs.length);
+        uint112[] memory reserv1s = new uint112[](pairs.length);
 
-        for(uint i = 0; i < addresses.length; i++) {
-            (reserv0s[i], reserv1s[i], ) = IUniswapV2Pair(addresses[i].pair).getReserves();
+        for(uint i = 0; i < pairs.length; i++) {
+            (reserv0s[i], reserv1s[i], ) = IUniswapV2Pair(pairs[i]).getReserves();
         }
 
         return (reserv0s, reserv1s);
@@ -80,40 +55,49 @@ contract UniswapCrossFlash {
     }
 
     function startArbitrage(
+
         uint256 _start,
         uint256 _end,
         address _token,
         uint256 _loan,
         uint256 _mid,
         uint256 _return
-        ) external {
 
-        require(_start < addresses.length, "Start DEX not present");
-        require(_end < addresses.length, "End DEX not present");
+    ) external {
+
+        require(_start < pairs.length, "Start DEX not present");
+        require(_end < pairs.length, "End DEX not present");
+
+        require(_mid > _return, "Require Profitability");
 
         uint256 amount0Out = _token == DAI ? _loan : 0;
         uint256 amount1Out = _token == WETH ? _loan : 0;
 
         bytes memory data = abi.encode(
+
             _start, 
             _end,
             _token,
             _loan,
             _mid,
-            _return,
-            msg.sender
-            );
+            _return
 
-        IUniswapV2Pair(addresses[_start].pair).swap(amount0Out, amount1Out, address(this), data);
+        );
+
+        IUniswapV2Pair(pairs[_start]).
+            swap(amount0Out, amount1Out, address(this), data);
     
     }
 
-    function uniswapV2Call(
-        address _sender,
-        uint256 _amount0,
-        uint256 _amount1,
-        bytes calldata _data
-    ) external {
+    function performArbitrage(
+
+        bytes memory _data,
+        address _source,
+        address _root_source
+
+    ) private {
+
+        require(_root_source == address(this), "Source must be this account");
 
         (
             uint256 _start,
@@ -122,22 +106,71 @@ contract UniswapCrossFlash {
             uint256 _loan,
             uint256 _mid,
             uint256 _return
+
         ) = abi.decode(_data, (
+
             uint256,
             uint256,
             address,
             uint256,
             uint256,
             uint256
+
             ));
-        require(msg.sender == addresses[_start].pair, "Sender needs to match the uniswap pair");
-        IERC20(_token).transfer(msg.sender, _loan);
+
+        require(_source == pairs[_start],
+        "Sender needs to match the uniswap pair");
+        
+        IERC20(_token).transfer(pairs[_end], _loan);
+
+        uint256 amount0Out = _token == WETH ? _mid : 0;
+        uint256 amount1Out = _token == DAI ? _mid : 0;
+
+        IUniswapV2Pair(pairs[_end]).
+        swap(amount0Out, amount1Out, address(this), new bytes(0));
+
+        IERC20(_token).transfer(pairs[_start], _return);
 
     }
 
-    // Call "Call Function" Dynamically
-    // Separate Execution of Arb
-    // Remove Router Addresses
+    function uniswapV2Call(
+
+        address _sender,
+        uint256 _amount0,
+        uint256 _amount1,
+        bytes calldata _data
+
+    ) external {
+   
+        performArbitrage(_data, msg.sender, _sender);
+
+    }
+
+    function SakeSwapCall(
+
+        address _sender,
+        uint256 _amount0,
+        uint256 _amount1,
+        bytes calldata _data
+
+    ) external {
+   
+        performArbitrage(_data, msg.sender, _sender);
+
+    }
+
+    function croDefiSwapCall(
+
+        address _sender,
+        uint256 _amount0,
+        uint256 _amount1,
+        bytes calldata _data
+
+    ) external {
+   
+        performArbitrage(_data, msg.sender, _sender);
+
+    }
 
 
 }
