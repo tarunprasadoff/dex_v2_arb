@@ -3,8 +3,11 @@ const { ethers} = require('hardhat')
 const { impersonateFundErc20 } = require("../utils/utilities")
 
 const { abi } = require("../artifacts/contracts/interfaces/IERC20.sol/IERC20.json")
+
 const shibaswap_abi = require("../external_abis/shibaswap.json")["result"]
 const crodefifactory_abi = require("../external_abis/crodefifactory.json")["result"]
+
+const croDefiFactory_address = "0x9DEB29c9a4c7A88a3C0257393b7f3335338D9A9D"
 
 const provider = ethers.provider
 
@@ -16,18 +19,16 @@ const pairs = [
     "0x60A26d69263eF43e9a68964bA141263F19D71D51" // CRODEFISWAP
 ]
 
-const croDefiFactory_address = "0x9DEB29c9a4c7A88a3C0257393b7f3335338D9A9D"
-
 const DAI = "0x6B175474E89094C44Da98b954EedeAC495271d0F"
 const WETH = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
 
 describe("Arbitrage UniswapV2 DAI-WETH", () => {
 
     let FLASHSWAP, DECIMALS_DAI, DECIMALS_WETH, 
-    reserves_dai, reserves_weth, reserves_dai_human, reserves_weth_human, fees, rates,
-    bestTrade_start, bestTrade_end, bestTrade_l, bestTrade_m, bestTrade_ret, bestTrade_pl
-    let bestTradeType = []
-    let bestTradeInd = []
+    reserves_dai, reserves_weth, reserves_dai_human, reserves_weth_human, rates
+
+    let bestPL = 0
+    let bestTrade = null
 
     beforeEach(async () => {
 
@@ -107,232 +108,67 @@ describe("Arbitrage UniswapV2 DAI-WETH", () => {
             console.log(rates[i])
         }
 
-        let dai_start = []
-        let dai_end = []
-        let dai_l_weth = []
-        let dai_m_dai = []
-        let dai_ret_dai = []
-        let dai_pl_dai = []
-        let dai_start_r_dai = []
-        let dai_start_r_weth = []
-        let dai_end_r_dai = []
-        let dai_end_r_weth = []
-
-        let weth_start = []
-        let weth_end = []
-        let weth_l_dai = []
-        let weth_m_weth = []
-        let weth_ret_weth = []
-        let weth_pl_weth = []
-        let weth_start_r_dai = []
-        let weth_start_r_weth = []
-        let weth_end_r_dai = []
-        let weth_end_r_weth = []
-
-        for (let i = 0; i < (pairs.length - 1); i++) {
-
-            // console.log("I: ", i)
-
-            for (let j = i + 1; j < pairs.length; j++) {
-
-                // console.log("J: ", j)
-
-                for (let step = 1; step < 10; step++) {
-
-                    let l_dai, l_weth, k_start, k_end, m_dai, m_weth, ret_dai, ret_weth, pl_dai, pl_weth
-            
-                    f = step / 10
-
-                    // console.log("F: ", f)
-
-                    if ( rates[i] > rates[j] ) {
-                        start_ind = i
-                        end_ind = j
-                    } else if ( rates[i] < rates[j] ) {
-                        start_ind = j
-                        end_ind = i
-                    } else {
-                        break
-                    }
-
-                    // console.log("Starting with DAI")
-
-                    l_dai = Number(f*Number(reserves_dai[start_ind]))
-
-                    k_end = Number(reserves_dai[end_ind]) * Number(reserves_weth[end_ind]) * (1000**2)
-
-                    m_weth = Number(reserves_weth[end_ind]) - ( k_end / ( 1000 * ( ( Number(reserves_dai[end_ind]) * 1000 ) + ( l_dai * 997 ) ) ) )
-
-                    k_start = Number(reserves_dai[start_ind]) * Number(reserves_weth[start_ind]) * (1000**2)
-
-                    ret_weth = ( ( ( k_start / ( 1000 * ( Number(reserves_dai[start_ind]) - l_dai ) ) ) - ( Number(reserves_weth[start_ind]) * 1000 ) ) / 997 )
-
-                    pl_weth = m_weth - ret_weth
-
-                    if ( pl_weth > 0 ) {
-                        weth_start.push(start_ind)
-                        weth_end.push(end_ind)
-                        weth_l_dai.push(l_dai)
-                        weth_m_weth.push(m_weth)
-                        weth_ret_weth.push(ret_weth)
-                        weth_pl_weth.push(pl_weth)
-                        weth_start_r_dai.push(Number(reserves_dai[start_ind]))
-                        weth_start_r_weth.push(Number(reserves_weth[start_ind]))
-                        weth_end_r_dai.push(Number(reserves_dai[end_ind]))
-                        weth_end_r_weth.push(Number(reserves_weth[end_ind]))
-                    }
-
-                    // console.log("Starting with WETH")
-
-                    if ( rates[i] > rates[j] ) {
-                        start_ind = j
-                        end_ind = i
-                    } else if ( rates[i] < rates[j] ) {
-                        start_ind = i
-                        end_ind = j
-                    } else {
-                        break
-                    }
-
-                    l_weth = Number(f*Number(reserves_weth[start_ind]))
-
-                    k_end = Number(reserves_dai[end_ind]) * Number(reserves_weth[end_ind]) * (1000**2)
-
-                    m_dai = Number(reserves_dai[end_ind]) - ( k_end / ( 1000 * ( ( Number(reserves_weth[end_ind]) * 1000 ) + ( l_weth * 997 ) ) ) )
-
-                    k_start = Number(reserves_dai[start_ind]) * Number(reserves_weth[start_ind]) * (1000**2)
-
-                    ret_dai = ( ( ( k_start / ( 1000 * ( Number(reserves_weth[start_ind]) - l_weth ) ) ) - ( Number(reserves_dai[start_ind]) * 1000 ) ) / 997 )
-
-                    pl_dai = m_dai - ret_dai
-
-                    if ( pl_dai > 0 ) {
-                        dai_start.push(start_ind)
-                        dai_end.push(end_ind)
-                        dai_l_weth.push(l_weth)
-                        dai_m_dai.push(m_dai)
-                        dai_ret_dai.push(ret_dai)
-                        dai_pl_dai.push(pl_dai)
-                        dai_start_r_dai.push(Number(reserves_dai[start_ind]))
-                        dai_start_r_weth.push(Number(reserves_weth[start_ind]))
-                        dai_end_r_dai.push(Number(reserves_dai[end_ind]))
-                        dai_end_r_weth.push(Number(reserves_weth[end_ind]))
-                    }
-
-                }
-
-            }
-
-        }
-
-        // console.log("dai trade count", daiTrades.length)
-        // console.log("weth trade count", wethTrades.length)
-
-        let bestDaiPL = 0
-        let bestWethPL = 0
-
-        let dmin, wmin
+        let currWethTrade = null
+        let currDaiTrade = null
 
         const average = arr => arr.reduce( ( p, c ) => p + c, 0 ) / arr.length
         const weth_to_dai_rate = average( rates )
 
-        if (dai_start.length > 0) {
-            for (let dind = 0; dind < dai_start.length; dind++) {
-                if (dind == 0) {
-                    bestDaiPL = dai_pl_dai[dind]
-                    dmin = 0
-                } else {
-                    if (dai_pl_dai[dind] < bestDaiPL) {
-                        bestDaiPL = dai_pl_dai[dind]
-                        dmin = dind
+        for (let i = 0; i < (pairs.length - 1); i++) {
+
+            for (let j = i + 1; j < pairs.length; j++) {
+
+                currWethTrade = sim_weth_profit_trade(rates,i,j,reserves_dai,reserves_weth)
+                currDaiTrade = sim_dai_profit_trade(rates,i,j,reserves_dai,reserves_weth)
+
+                if ( currWethTrade ) {
+
+                    if ( ( currWethTrade["pl"] * weth_to_dai_rate ) > bestPL ) {
+
+                        bestPL = currWethTrade["pl"] * weth_to_dai_rate
+                        bestTrade = currWethTrade
+
                     }
+
                 }
-            }
 
-            console.log("Most Profitable WETH Flash Loan Origin Trade")
-            console.log("Start Dex Ind", dai_start[dmin])
-            console.log("End Dex Ind", dai_end[dmin])
-            console.log("Loan in WETH: ", dai_l_weth[dmin])
-            console.log("Mid in DAI: ", dai_m_dai[dmin])
-            console.log("Return in DAI: ", dai_ret_dai[dmin])
-            console.log("PL in DAI: ", dai_pl_dai[dmin])
-            console.log("Start Reserve DAI: ", dai_start_r_dai[dmin])
-            console.log("Start Reserve WETH: ", dai_start_r_weth[dmin])
-            console.log("End Reserve DAI: ", dai_end_r_dai[dmin])
-            console.log("End Reserve WETH: ", dai_end_r_weth[dmin])
+                if ( currDaiTrade ) {
 
-            bestTradeType = [WETH]
-            bestTradeInd = dmin
-            bestTrade_start = dai_start[dmin]
-            bestTrade_end = dai_end[dmin]
-            bestTrade_l = dai_l_weth[dmin]
-            bestTrade_m = dai_m_dai[dmin]
-            bestTrade_ret = dai_ret_dai[dmin]
-            bestTrade_pl = dai_pl_dai[dmin]
+                    if ( currDaiTrade["pl"] > bestPL ) {
 
-        } else {
-            console.log("No Net Profitable WETH Flash Loan Origin Trades")
-        }
+                        bestPL = currDaiTrade["pl"]
+                        bestTrade = currDaiTrade
 
-        if (weth_start.length > 0) {
-            for (let wind = 0; wind < weth_start.length; wind++) {
-                if (wind == 0) {
-                    bestWethPL = weth_pl_weth[wind]
-                    wmin = 0
-                } else {
-                    if (weth_pl_weth[wind] < bestWethPL) {
-                        bestWethPL = weth_pl_weth[wind]
-                        wmin = wind
                     }
+
                 }
+
             }
 
-            console.log("Most Profitable DAI Flash Loan Origin Trade")
-            console.log("Start Dex Ind", weth_start[wmin])
-            console.log("End Dex Ind", weth_end[wmin])
-            console.log("Loan in DAI: ", weth_l_dai[wmin])
-            console.log("Mid in WETH: ", weth_m_weth[wmin])
-            console.log("Return in WETH: ", weth_ret_weth[wmin])
-            console.log("PL in WETH: ", weth_pl_weth[wmin])
-            console.log("Start Reserve DAI: ", weth_start_r_dai[wmin])
-            console.log("Start Reserve WETH: ", weth_start_r_weth[wmin])
-            console.log("End Reserve DAI: ", weth_end_r_dai[wmin])
-            console.log("End Reserve WETH: ", weth_end_r_weth[wmin])
-
-            if (bestTradeType.length == 0) {
-                bestTradeType = [DAI]
-                bestTradeInd = wmin
-                bestTrade_start = weth_start[wmin]
-                bestTrade_end = weth_end[wmin]
-                bestTrade_l = weth_l_dai[wmin]
-                bestTrade_m = weth_m_weth[wmin]
-                bestTrade_ret = weth_ret_weth[wmin]
-                bestTrade_pl = weth_pl_weth[wmin]
-            } else {
-                if ((bestWethPL * weth_to_dai_rate) > bestDaiPL) {
-                    bestTradeType = [DAI]
-                    bestTradeInd = wmin
-                    bestTrade_start = weth_start[wmin]
-                    bestTrade_end = weth_end[wmin]
-                    bestTrade_l = weth_l_dai[wmin]
-                    bestTrade_m = weth_m_weth[wmin]
-                    bestTrade_ret = weth_ret_weth[wmin]
-                    bestTrade_pl = weth_pl_weth[wmin]
-                }
-            }
-
-        } else {
-            console.log("No Net Profitable DAI Flash Loan Origin Trades")
         }
 
     })
 
     it("Testing Trades", async () => {
 
-        if (bestTradeType.length > 0){
+        if ( bestPL <= 0 ) {
 
-            await FLASHSWAP.startArbitrage(bestTrade_start, bestTrade_end, bestTradeType[0],
-                                           bestTrade_l, bestTrade_m, bestTrade_ret)
+            console.log("No Profitable Trades to Execute")
+
+        } else {
+
+            {
+                "start_ind",
+                "end_ind",
+                "l",
+                "m",
+                "ret",
+                "pl",
+                "token"
+            }
+
+            await FLASHSWAP.startArbitrage(bestTrade["start_ind"], bestTrade["end_ind"], bestTrade["token"],
+                                           bestTrade["l"], bestTrade["m"], bestTrade["ret"])
 
             const dai_balance = await FLASHSWAP.getBalanceOfToken(DAI)
             const dai_balance_human = ethers.utils.formatUnits(dai_balance, DECIMALS_DAI)
@@ -342,10 +178,229 @@ describe("Arbitrage UniswapV2 DAI-WETH", () => {
             const weth_balance_human = ethers.utils.formatUnits(weth_balance, DECIMALS_WETH)
             console.log("Final WETH Balance", weth_balance_human)
 
-        } else {
-            console.log("No Profitable Trades to Execute")
         }
         
     })
 
 })
+
+function sim_weth_profit_trade(rates, i, j, reserves_dai, reserves_weth) {
+
+    let start_ind, end_ind, weth_Fs, weth_sols, weth_pls, weth_pl_sim_curr,
+    weth_pl_sim, weth_pls_max_ind, weth_sol, weth_m_weths, weth_ret_weths
+
+    if ( rates[i] > rates[j] ) {
+
+        start_ind = i
+        end_ind = j
+
+    } else if ( rates[i] < rates[j] ) {
+
+        start_ind = j
+        end_ind = i
+
+    } else {
+        
+        return null
+
+    }
+
+    console.log("WETH Simulation", start_ind, end_ind)
+
+    const a_sim = Number(reserves_weth[end_ind])
+
+    const b_sim = Number(reserves_dai[end_ind]) * Number(reserves_weth[end_ind]) * 1000
+
+    const c_sim = Number(reserves_dai[end_ind]) * 1000
+
+    const d_sim = Number(reserves_dai[start_ind]) * 997
+
+    const e_sim = ( Number(reserves_weth[start_ind]) * 1000 ) / 997
+
+    const N_1 = ( e_sim ** 0.5 ) * 
+          ((
+            ( b_sim * d_sim * ( c_sim ** 2 ) ) +
+            ( 2 * b_sim * c_sim * ( d_sim ** 2 ) ) +
+            ( b_sim * ( d_sim ** 3 ) )
+            ) ** 0.5)
+
+    const N_2 = ( b_sim * d_sim ) + ( e_sim * c_sim * d_sim )
+
+    const D_1 = ( b_sim * d_sim ) - ( e_sim * ( d_sim ** 2) )
+
+    weth_Fs = [ ( ( N_2 - N_1 ) / D_1 ) , ( ( N_2 + N_1 ) / D_1 )]
+    weth_sols = []
+    weth_pls = []
+    weth_m_weths = []
+    weth_ret_weths = []
+
+    for (let weth_F of weth_Fs) {
+
+        if ( ( weth_F > 0 ) && ( weth_F < 1 ) ) {
+
+            m_weth_sim = a_sim - ( b_sim / ( c_sim + d_sim * weth_F ) )
+            ret_weth_sim = e_sim * ( weth_F / ( 1 - weth_F ) )
+
+            weth_pl_sim_curr = m_weth_sim - ret_weth_sim
+            
+            if (weth_pl_sim_curr > 0) {
+
+                weth_sols.push(weth_F)
+                weth_pls.push(weth_pl_sim_curr)
+                weth_m_weths.push(m_weth_sim)
+                weth_ret_weths.push(ret_weth_sim)
+
+            }
+
+        }
+
+    }
+    
+    if ( weth_pls.length > 0 ) {
+
+        weth_pl_sim = Math.max(...weth_pls)
+        weth_pls_max_ind = weth_pls.indexOf(weth_pl_sim)
+        weth_sol = weth_sols[weth_pls_max_ind]
+        console.log("Weth Profit Trade Sim")
+
+        console.log("Start DAI", Number(reserves_dai[start_ind]))
+        console.log("Fraction: ", weth_sol)
+        console.log("Loan DAI", weth_sol*Number(reserves_dai[start_ind]))
+
+        console.log("Mid WETH", weth_m_weths[weth_pls_max_ind] )
+        console.log("Ret WETH", weth_ret_weths[weth_pls_max_ind] )
+        console.log("Profit: ", weth_pl_sim )
+
+        return {
+            "start_ind": start_ind,
+            "end_ind": end_ind,
+            "l": weth_sol*Number(reserves_dai[start_ind]),
+            "m": weth_m_weths[weth_pls_max_ind],
+            "ret": weth_ret_weths[weth_pls_max_ind],
+            "pl": weth_pl_sim,
+            "token": DAI
+        }
+
+    } else {
+
+        console.log("No Profitable WETH Trades according to Sim")
+
+        return null
+
+    }
+
+}
+
+function sim_dai_profit_trade(rates, i, j, reserves_dai, reserves_weth) {
+
+    let start_ind, end_ind, dai_Fs, dai_sols, dai_pls, dai_pl_sim_curr,
+        dai_pl_sim, dai_pls_max_ind, dai_sol, dai_m_dais, dai_ret_dais
+
+    if ( rates[i] > rates[j] ) { 
+
+        start_ind = j
+        end_ind = i
+
+    } else if ( rates[i] < rates[j] ) {
+
+        start_ind = i
+        end_ind = j
+
+    } else {
+
+        return null
+
+    }
+
+    console.log("WETH Simulation", start_ind, end_ind)
+
+    const a_sim = Number(reserves_dai[end_ind])
+
+    const b_sim = Number(reserves_dai[end_ind]) * Number(reserves_weth[end_ind]) * 1000
+
+    const c_sim = 1000 * Number(reserves_weth[end_ind])
+
+    const d_sim = 997 * Number(reserves_weth[start_ind])
+
+    const e_sim = Number(reserves_dai[start_ind]) * ( 1000 / 997 )
+
+    const N_1 = ( e_sim ** 0.5 ) * 
+          ((
+            ( b_sim * d_sim * ( c_sim ** 2 ) ) +
+            ( 2 * b_sim * c_sim * ( d_sim ** 2 ) ) +
+            ( b_sim * ( d_sim ** 3 ) )
+            ) ** 0.5)
+
+    const N_2 = ( b_sim * d_sim ) + ( e_sim * c_sim * d_sim )
+
+    const D_1 = ( b_sim * d_sim ) - ( e_sim * ( d_sim ** 2) )
+
+    dai_Fs = [ ( ( N_2 - N_1 ) / D_1 ) , ( ( N_2 + N_1 ) / D_1 )]
+    dai_sols = []
+    dai_pls = []
+    dai_m_dais = []
+    dai_ret_dais = []
+
+    for (let dai_F of dai_Fs) {
+
+        if ( ( dai_F > 0 ) && ( dai_F < 1 ) ) {
+
+            m_dai_sim = a_sim - ( b_sim / ( c_sim + d_sim * dai_F ) )
+            ret_dai_sim = e_sim * ( dai_F / ( 1 - dai_F ) )
+
+            dai_pl_sim_curr = m_dai_sim - ret_dai_sim
+            
+            if (dai_pl_sim_curr > 0) {
+
+                dai_sols.push(dai_F)
+                dai_pls.push(dai_pl_sim_curr)
+                dai_m_dais.push(m_dai_sim)
+                dai_ret_dais.push(ret_dai_sim)
+
+            }
+
+        }
+
+    }
+    
+    if ( dai_pls.length > 0 ) {
+
+        dai_pl_sim = Math.max(...dai_pls)
+        dai_pls_max_ind = dai_pls.indexOf(dai_pl_sim)
+        dai_sol = dai_sols[dai_pls_max_ind]
+        console.log("Dai Profit Trade Sim")
+
+        console.log("Start WETH", Number(reserves_weth[start_ind]))
+        console.log("Fraction: ", dai_sol)
+        console.log("Loan WETH", dai_sol*Number(reserves_weth[start_ind]))        
+        
+        console.log("Mid DAI", dai_m_dais[dai_pls_max_ind])
+        console.log("Ret DAI", dai_ret_dais[dai_pls_max_ind])
+        console.log("Profit: ", dai_pl_sim)
+
+        return {
+            "start_ind": start_ind,
+            "end_ind": end_ind,
+            "l": dai_sol*Number(reserves_weth[start_ind]),
+            "m": dai_m_dais[dai_pls_max_ind],
+            "ret": dai_ret_dais[dai_pls_max_ind],
+            "pl": dai_pl_sim,
+            "token": WETH
+        }
+
+    } else {
+
+        console.log("No Profitable DAI Trades according to Sim")
+
+        return null
+
+    }
+
+}
+
+// To Do
+
+// Combine the two sims to single function
+// Create a loop of non hardhat ethers.js and verify if live and fork matches
+// If it matches then sim until a profitable signal and execute on fork once signal arrives
+// Feed fees and magnifier dynamically
