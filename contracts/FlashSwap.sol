@@ -129,7 +129,12 @@ contract UniswapCrossFlash {
         IUniswapV2Pair(pairs[_end]).
         swap(amount0Out, amount1Out, address(this), new bytes(0));
 
-        IERC20(_token).transfer(pairs[_start], _return);
+        if (_token == WETH) {
+            IERC20(DAI).transfer(pairs[_start], _return);
+        } else {
+            IERC20(WETH).transfer(pairs[_start], _return);
+        }
+        
 
     }
 
