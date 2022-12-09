@@ -1,3 +1,2 @@
-let man = BigInt("6419506307238403000")
-man += BigInt(1)
-console.log(man>2)
+let man = BigInt( 13 ) / BigInt( 5 )
+console.log(man)

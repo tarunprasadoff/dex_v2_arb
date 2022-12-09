@@ -1,4 +1,4 @@
-export function sim_weth_profit_trade(rates, i, j, reserves_dai, reserves_weth) {
+function sim_weth_profit_trade(rates, i, j, reserves_dai, reserves_weth) {
 
     let start_ind, end_ind, weth_Fs, weth_sols, weth_pls, weth_pl_sim_curr,
     weth_pl_sim, weth_pls_max_ind, weth_l_dais, weth_m_weths, weth_ret_weths
@@ -258,3 +258,5 @@ export function sim_weth_profit_trade(rates, i, j, reserves_dai, reserves_weth) 
     }
 
 }
+
+module.exports = { sim_weth_profit_trade }

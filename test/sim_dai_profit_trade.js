@@ -1,4 +1,4 @@
-export function sim_dai_profit_trade(rates, i, j, reserves_dai, reserves_weth) {
+function sim_dai_profit_trade(rates, i, j, reserves_dai, reserves_weth) {
 
     let start_ind, end_ind, dai_Fs, dai_sols, dai_pls, dai_pl_sim_curr,
         dai_pl_sim, dai_pls_max_ind, dai_l_weths, dai_m_dais, dai_ret_dais
@@ -89,7 +89,7 @@ export function sim_dai_profit_trade(rates, i, j, reserves_dai, reserves_weth) {
 
                 if ( m_is_step_positive ) {
 
-                    m_step_cap = BigInt( reserves_weth[end_ind] ) - m_dai_sim
+                    m_step_cap = BigInt( reserves_dai[end_ind] ) - m_dai_sim
 
                 } else {
 
@@ -257,3 +257,5 @@ export function sim_dai_profit_trade(rates, i, j, reserves_dai, reserves_weth) {
     }
 
 }
+
+module.exports = { sim_dai_profit_trade }

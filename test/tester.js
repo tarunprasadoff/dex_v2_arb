@@ -7,7 +7,7 @@ const { abi } = require("../artifacts/contracts/interfaces/IERC20.sol/IERC20.jso
 // import { sim_weth_profit_trade } from "./sim_weth_profit_trade.js"
 // import { sim_dai_profit_trade } from "./sim_dai_profit_trade.js"
 
-import { sim_trade } from "./sim_trade.js"
+const { sim_trade } = require("./sim_trade.js")
 
 const shibaswap_abi = require("../external_abis/shibaswap.json")["result"]
 const crodefifactory_abi = require("../external_abis/crodefifactory.json")["result"]
@@ -119,12 +119,14 @@ describe("Arbitrage UniswapV2 DAI-WETH", () => {
 
         rates = []
         for (let i = 0; i < pairs.length; i++) {
-            rates.push(reserves_dai_human[i]/reserves_weth_human[i])
-            console.log(rates[i])
+            rates.push( reserves_dai_human[i] / reserves_weth_human[i] )
+            console.log( rates[i] )
         }
 
         let currWethTrade = null
         let currDaiTrade = null
+
+        let curr_pl
 
         const average = arr => arr.reduce( ( p, c ) => p + c, 0 ) / arr.length
         const weth_to_dai_rate = average( rates )
@@ -148,9 +150,11 @@ describe("Arbitrage UniswapV2 DAI-WETH", () => {
 
                 if ( currWethTrade ) {
 
-                    if ( ( currWethTrade["pl"] * weth_to_dai_rate ) > bestPL ) {
+                    curr_pl = Number(currWethTrade["pl"]) * weth_to_dai_rate
 
-                        bestPL = currWethTrade["pl"] * weth_to_dai_rate
+                    if ( curr_pl > bestPL ) {
+
+                        bestPL = curr_pl
                         bestTrade = currWethTrade
 
                     }
@@ -159,9 +163,11 @@ describe("Arbitrage UniswapV2 DAI-WETH", () => {
 
                 if ( currDaiTrade ) {
 
-                    if ( currDaiTrade["pl"] > bestPL ) {
+                    curr_pl = Number(currDaiTrade["pl"])
 
-                        bestPL = currDaiTrade["pl"]
+                    if ( curr_pl > bestPL ) {
+
+                        bestPL = curr_pl
                         bestTrade = currDaiTrade
 
                     }
@@ -198,13 +204,13 @@ describe("Arbitrage UniswapV2 DAI-WETH", () => {
             console.log("Start Ind", bestTrade["start_ind"], typeof(bestTrade["start_ind"]))
             console.log("End Ind", bestTrade["end_ind"], typeof(bestTrade["end_ind"]))
             console.log("Loan Token", currLoanToken, typeof(currLoanToken))
-            console.log("Loan", bestTrade["l"].toString(), currLoanToken, typeof(bestTrade["l"].toString()))
-            console.log("Mid ", bestTrade["m"].toString(), currProfitToken, typeof(bestTrade["m"].toString()))
-            console.log("Return", bestTrade["ret"].toString(), currProfitToken, typeof(bestTrade["ret"].toString()))
-            console.log("Profit of: ", bestTrade["pl"].toString(), currProfitToken, typeof(bestTrade["pl"].toString()))
+            console.log("Loan", bestTrade["l"], currLoanToken, typeof(bestTrade["l"]))
+            console.log("Mid ", bestTrade["m"], currProfitToken, typeof(bestTrade["m"]))
+            console.log("Return", bestTrade["ret"], currProfitToken, typeof(bestTrade["ret"]))
+            console.log("Profit of: ", bestTrade["pl"], currProfitToken, typeof(bestTrade["pl"]))
 
-            await FLASHSWAP.startArbitrage(bestTrade["start_ind"], bestTrade["end_ind"], currLoanToken,
-                                           bestTrade["l"].toString(), bestTrade["m"].toString(), bestTrade["ret"].toString())
+            await FLASHSWAP.startArbitrage(bestTrade["start_ind"], bestTrade["end_ind"], ( ( bestTrade["loan_token"] == 0 ) ? DAI: WETH ),
+                                           bestTrade["l"], bestTrade["m"], bestTrade["ret"])
 
             const dai_balance = await FLASHSWAP.getBalanceOfToken(DAI)
             const dai_balance_human = ethers.utils.formatUnits(dai_balance, DECIMALS_DAI)

@@ -1,4 +1,4 @@
-export function get_inds(rates, i, j, isLoanToken0) {
+function get_inds(rates, i, j, isLoanToken0) {
 
     if ( ( ( rates[i] > rates[j] ) && isLoanToken0 ) || ( ( rates[i] < rates[j] ) && !isLoanToken0 ) ) {
         return [i,j]
@@ -9,3 +9,5 @@ export function get_inds(rates, i, j, isLoanToken0) {
     }
 
 }
+
+module.exports = { get_inds }

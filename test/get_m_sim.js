@@ -22,32 +22,64 @@ function get_m_sim(reserves_0, reserves_1, l, end_ind, magnifiers, fees, isLoanT
 
     if ( ( den * ( left - m_sim ) ) >= num ) {
 
-        if ( ( den * ( left - m_sim - BigInt(1) ) ) >= num ) {
+        // console.log("Increasing M Sim - End Ind:", end_ind)
 
-            return ( m_sim + BigInt(1) )
+        while ( ( den * ( left - m_sim - BigInt(1) ) ) >= num ) {
 
-        } else {
+            m_sim += BigInt(1)
 
-            return m_sim
+            // console.log(m_sim)
 
         }
 
-    } else if( ( den * ( left - m_sim + BigInt(1) ) ) >= num ) {
+        // if ( ( den * ( left - m_sim - BigInt(1) ) ) >= num ) {
 
-        return ( m_sim - BigInt(1) )
+        //     return ( m_sim + BigInt(1) )
+
+        // } else {
+
+        //     return m_sim
+
+        // }
 
     } else {
 
-        console.log(
-        `Rounding Error: 
-        ${names[0]} End Reserve ${reserves_0[end_ind]} 
-        ${names[1]} End Reserve ${reserves_1[end_ind]} 
-        Loan ${names[0] ? isLoanToken0: names[1]} Loan Amount ${l} 
-        Mid ${names[1] ? isLoanToken0: names[0]}  Mid Sim ${m_sim}`
-        )
+        // console.log("Decreasing M Sim - End Ind:", end_ind)
 
-        throw("Rounding Error")
+        while ( true ) {
+
+            m_sim -= BigInt(1)
+
+            // console.log(m_sim)
+
+            if ( ( den * ( left - m_sim ) ) >= num ) {
+                break
+            }
+
+        }
 
     }
 
+    return m_sim
+    
+    // else if( ( den * ( left - m_sim + BigInt(1) ) ) >= num ) {
+
+    //     return ( m_sim - BigInt(1) )
+
+    // } else {
+
+    //     console.log(
+    //     `Rounding Error: 
+    //     ${names[0]} End Reserve ${reserves_0[end_ind]} 
+    //     ${names[1]} End Reserve ${reserves_1[end_ind]} 
+    //     Loan ${names[0] ? isLoanToken0: names[1]} Loan Amount ${l} 
+    //     Mid ${names[1] ? isLoanToken0: names[0]}  Mid Sim ${m_sim}`
+    //     )
+
+    //     throw("Rounding Error")
+
+    // }
+
 }
+
+module.exports = { get_m_sim }
