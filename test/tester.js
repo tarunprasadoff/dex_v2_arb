@@ -4,9 +4,6 @@ const { impersonateFundErc20 } = require("../utils/utilities")
 
 const { abi } = require("../artifacts/contracts/interfaces/IERC20.sol/IERC20.json")
 
-// import { sim_weth_profit_trade } from "./sim_weth_profit_trade.js"
-// import { sim_dai_profit_trade } from "./sim_dai_profit_trade.js"
-
 const { sim_trade } = require("./sim_trade.js")
 
 const shibaswap_abi = require("../external_abis/shibaswap.json")["result"]
@@ -24,13 +21,15 @@ const pairs = [
     "0x60A26d69263eF43e9a68964bA141263F19D71D51" // CRODEFISWAP
 ]
 
-const DAI = "0x6B175474E89094C44Da98b954EedeAC495271d0F"
-const WETH = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
+const TOKEN_0 = "0x6B175474E89094C44Da98b954EedeAC495271d0F"
+const TOKEN_1 = "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
 
-describe("Arbitrage UniswapV2 DAI-WETH", () => {
+const names = ["DAI", "WETH"]
 
-    let FLASHSWAP, DECIMALS_DAI, DECIMALS_WETH, 
-    reserves_dai, reserves_weth, reserves_dai_human, reserves_weth_human
+describe("Arbitrage UniswapV2", () => {
+
+    let FLASHSWAP, DECIMALS_TOKEN_0, DECIMALS_TOKEN_1,
+    reserves_token_0, reserves_token_1, reserves_token_0_human, reserves_token_1_human
     
     let rates, fees, magnifiers
 
@@ -40,50 +39,53 @@ describe("Arbitrage UniswapV2 DAI-WETH", () => {
     beforeEach(async () => {
 
         [owner] = await ethers.getSigners()
-        const FlashSwap = await ethers.getContractFactory("UniswapCrossFlash");
-        FLASHSWAP = await FlashSwap.deploy(pairs, DAI, WETH)
+        const FlashSwap = await ethers.getContractFactory("UniswapCrossFlash")
+
+        FLASHSWAP = await FlashSwap.deploy(pairs, TOKEN_0, TOKEN_1)
+
         await FLASHSWAP.deployed()
 
         // Obtaining decimals
-        const daiContract = new ethers.Contract(DAI, abi, provider)
-        const wethContract = new ethers.Contract(WETH, abi, provider)
 
-        DECIMALS_DAI = (await daiContract.decimals())
-        DECIMALS_WETH = (await wethContract.decimals())
+        const token_0_contract = new ethers.Contract(TOKEN_0, abi, provider)
+        const token_1_contract = new ethers.Contract(TOKEN_1, abi, provider)
 
-        const dai_whale = "0xf977814e90da44bfa03b6295a0616a897441acec"
-        const dai_borrow_amount_human = "10000"
+        DECIMALS_TOKEN_0 = (await token_0_contract.decimals())
+        DECIMALS_TOKEN_1 = (await token_1_contract.decimals())
+
+        const token_0_whale = "0xf977814e90da44bfa03b6295a0616a897441acec"
+        const token_0_borrow_amount_human = "10000"
         
         // Fund our contract - FOR TESTING ONLY
+
         await impersonateFundErc20(
-            daiContract,
-            dai_whale,
+            token_0_contract,
+            token_0_whale,
             FLASHSWAP.address,
-            dai_borrow_amount_human,
-            DECIMALS_DAI
+            token_0_borrow_amount_human,
+            DECIMALS_TOKEN_0
         )
 
-        const dai_balance = await FLASHSWAP.getBalanceOfToken(DAI)
-        const dai_balance_human = ethers.utils.formatUnits(dai_balance, DECIMALS_DAI)
-        console.log("Initial Funded DAI Balance", dai_balance_human)
-        expect(Number(dai_balance_human)).equal(Number(dai_borrow_amount_human))
+        const token_0_balance = await FLASHSWAP.getBalanceOfToken(TOKEN_0)
+        const token_0_balance_human = ethers.utils.formatUnits(token_0_balance, DECIMALS_TOKEN_0)
+        console.log(`Initial Funded Token 0 ${names[0]} Balance`, token_0_balance_human)
+        expect(Number(token_0_balance_human)).equal(Number(token_0_borrow_amount_human))
 
-        const weth_whale = "0x06920c9fc643de77b99cb7670a944ad31eaaa260"
-        const weth_borrow_amount_human = "10"
-        
-        // Fund our contract - FOR TESTING ONLY
+        const token_1_whale = "0x06920c9fc643de77b99cb7670a944ad31eaaa260"
+        const token_1_borrow_amount_human = "10"
+
         await impersonateFundErc20(
-            wethContract,
-            weth_whale,
+            token_1_contract,
+            token_1_whale,
             FLASHSWAP.address,
-            weth_borrow_amount_human,
-            DECIMALS_WETH
+            token_1_borrow_amount_human,
+            DECIMALS_TOKEN_1
         )
 
-        const weth_balance = await FLASHSWAP.getBalanceOfToken(WETH)
-        const weth_balance_human = ethers.utils.formatUnits(weth_balance, DECIMALS_WETH)
-        console.log("Initial Funded WETH Balance", weth_balance_human)
-        expect(Number(weth_balance_human)).equal(Number(weth_borrow_amount_human))
+        const token_1_balance = await FLASHSWAP.getBalanceOfToken(TOKEN_1)
+        const token_1_balance_human = ethers.utils.formatUnits(token_1_balance, DECIMALS_TOKEN_1)
+        console.log(`Initial Funded Token 1 ${names[1]} Balance`, token_1_balance_human)
+        expect(Number(token_1_balance_human)).equal(Number(token_1_borrow_amount_human))
 
         const _shibaswap = new ethers.Contract(pairs[2], shibaswap_abi, provider)
 
@@ -110,65 +112,63 @@ describe("Arbitrage UniswapV2 DAI-WETH", () => {
     it("Evaluate Arbitrage", async () => {
         
         let reserves_res = (await FLASHSWAP.getReserves())
-        reserves_dai = reserves_res[0]
-        reserves_weth = reserves_res[1]
 
-        reserves_dai_human = reserves_dai.map((v) => ethers.utils.formatUnits(v, DECIMALS_DAI))
-        reserves_weth_human = reserves_weth.map((v) => ethers.utils.formatUnits(v, DECIMALS_WETH))
-        console.log(reserves_dai_human, reserves_weth_human)
+        reserves_token_0 = reserves_res[0]
+        reserves_token_1 = reserves_res[1]
+
+        reserves_token_0_human = reserves_token_0.map((v) => ethers.utils.formatUnits(v, DECIMALS_TOKEN_0))
+        reserves_token_1_human = reserves_token_1.map((v) => ethers.utils.formatUnits(v, DECIMALS_TOKEN_1))
+        console.log(reserves_token_0_human, reserves_token_1_human)
 
         rates = []
         for (let i = 0; i < pairs.length; i++) {
-            rates.push( reserves_dai_human[i] / reserves_weth_human[i] )
+
+            rates.push( reserves_token_0_human[i] / reserves_token_1_human[i] )
+
             console.log( rates[i] )
+
         }
 
-        let currWethTrade = null
-        let currDaiTrade = null
+        let curr_token_1_trade = null
+        let curr_token_0_trade = null
 
         let curr_pl
 
         const average = arr => arr.reduce( ( p, c ) => p + c, 0 ) / arr.length
-        const weth_to_dai_rate = average( rates )
+
+        const token_1_to_token_0_rate = average( rates )
+
+        const sim_names = [`Token 0: ${names[0]}`, `Token 1: ${names[1]}`]
 
         for (let i = 0; i < (pairs.length - 1); i++) {
 
             for (let j = i + 1; j < pairs.length; j++) {
 
-                // currWethTrade = sim_weth_profit_trade(rates,i,j,reserves_dai,reserves_weth)
-                // currDaiTrade = sim_dai_profit_trade(rates,i,j,reserves_dai,reserves_weth)
+                curr_token_1_trade = sim_trade( rates, i, j, reserves_token_0, reserves_token_1, true, magnifiers, fees, sim_names)
 
-                currWethTrade = sim_trade( rates, i, j, reserves_dai, reserves_weth,
-                                           true, magnifiers, fees,
-                                           ["Token 0: DAI", "Token 1: WETH"]
-                                         )
+                curr_token_0_trade = sim_trade( rates, i, j, reserves_token_0, reserves_token_1, false, magnifiers, fees, sim_names)
 
-                currDaiTrade = sim_trade( rates, i, j, reserves_dai, reserves_weth,
-                                            false, magnifiers, fees,
-                                            ["Token 0: DAI", "Token 1: WETH"]
-                                          )
+                if ( curr_token_1_trade ) {
 
-                if ( currWethTrade ) {
-
-                    curr_pl = Number(currWethTrade["pl"]) * weth_to_dai_rate
+                    curr_pl = Number(curr_token_1_trade["pl"]) * token_1_to_token_0_rate
 
                     if ( curr_pl > bestPL ) {
 
                         bestPL = curr_pl
-                        bestTrade = currWethTrade
+                        bestTrade = curr_token_1_trade
 
                     }
 
                 }
 
-                if ( currDaiTrade ) {
+                if ( curr_token_0_trade ) {
 
-                    curr_pl = Number(currDaiTrade["pl"])
+                    curr_pl = Number(curr_token_0_trade["pl"])
 
                     if ( curr_pl > bestPL ) {
 
                         bestPL = curr_pl
-                        bestTrade = currDaiTrade
+                        bestTrade = curr_token_0_trade
 
                     }
 
@@ -193,32 +193,36 @@ describe("Arbitrage UniswapV2 DAI-WETH", () => {
             console.log("Best Trade")
 
             if ( bestTrade["loan_token"] == 0 ) {
-                currLoanToken = "DAI"
-                currProfitToken = "WETH"
+
+                currLoanToken = names[0]
+                currProfitToken = names[1]
+
             } else {
-                currLoanToken = "WETH"
-                currProfitToken = "DAI"
+
+                currLoanToken = names[1]
+                currProfitToken = names[0]
+                
             }
             
 
-            console.log("Start Ind", bestTrade["start_ind"], typeof(bestTrade["start_ind"]))
-            console.log("End Ind", bestTrade["end_ind"], typeof(bestTrade["end_ind"]))
-            console.log("Loan Token", currLoanToken, typeof(currLoanToken))
-            console.log("Loan", bestTrade["l"], currLoanToken, typeof(bestTrade["l"]))
-            console.log("Mid ", bestTrade["m"], currProfitToken, typeof(bestTrade["m"]))
-            console.log("Return", bestTrade["ret"], currProfitToken, typeof(bestTrade["ret"]))
-            console.log("Profit of: ", bestTrade["pl"], currProfitToken, typeof(bestTrade["pl"]))
+            console.log("Start Ind", bestTrade["start_ind"])
+            console.log("End Ind", bestTrade["end_ind"])
+            console.log("Loan Token", currLoanToken)
+            console.log("Loan", bestTrade["l"], currLoanToken)
+            console.log("Mid ", bestTrade["m"], currProfitToken)
+            console.log("Return", bestTrade["ret"], currProfitToken)
+            console.log("Profit of: ", bestTrade["pl"], currProfitToken)
 
-            await FLASHSWAP.startArbitrage(bestTrade["start_ind"], bestTrade["end_ind"], ( ( bestTrade["loan_token"] == 0 ) ? DAI: WETH ),
+            await FLASHSWAP.startArbitrage(bestTrade["start_ind"], bestTrade["end_ind"], ( ( bestTrade["loan_token"] == 0 ) ? TOKEN_0: TOKEN_1 ),
                                            bestTrade["l"], bestTrade["m"], bestTrade["ret"])
 
-            const dai_balance = await FLASHSWAP.getBalanceOfToken(DAI)
-            const dai_balance_human = ethers.utils.formatUnits(dai_balance, DECIMALS_DAI)
-            console.log("Final DAI Balance", dai_balance_human)
+            const token_0_balance = await FLASHSWAP.getBalanceOfToken(TOKEN_0)
+            const token_0_balance_human = ethers.utils.formatUnits(token_0_balance, DECIMALS_TOKEN_0)
+            console.log(`Final Token 0 ${names[0]} Balance`, token_0_balance_human)
 
-            const weth_balance = await FLASHSWAP.getBalanceOfToken(WETH)
-            const weth_balance_human = ethers.utils.formatUnits(weth_balance, DECIMALS_WETH)
-            console.log("Final WETH Balance", weth_balance_human)
+            const token_1_balance = await FLASHSWAP.getBalanceOfToken(TOKEN_1)
+            const token_1_balance_human = ethers.utils.formatUnits(token_1_balance, DECIMALS_TOKEN_1)
+            console.log(`Final Token 1 ${names[1]} Balance`, token_1_balance_human)
 
         }
         
@@ -228,6 +232,5 @@ describe("Arbitrage UniswapV2 DAI-WETH", () => {
 
 // To Do
 
-// Test Precision in BigInt Computation
 // Create a loop of non hardhat ethers.js and verify if live and fork matches
 // If it matches then sim until a profitable signal and execute on fork once signal arrives

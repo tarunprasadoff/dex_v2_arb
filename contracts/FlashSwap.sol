@@ -20,18 +20,18 @@ contract UniswapCrossFlash {
     address[] public pairs;
 
     // Token Addresses
-    address private DAI; // token0
-    address private WETH; // token1
+    address private TOKEN_0; // token0
+    address private TOKEN_1; // token1
 
     //Trade Variables
     uint256 private deadline  = block.timestamp + 10 seconds;
     
-    constructor(address[] memory _pairs, address _DAI, address _WETH) public {
+    constructor(address[] memory _pairs, address _TOKEN_0, address _TOKEN_1) public {
 
         require(_pairs.length > 0, "Pairs should be more than one");
         
-        DAI = _DAI;
-        WETH = _WETH;
+        TOKEN_0 = _TOKEN_0;
+        TOKEN_1 = _TOKEN_1;
 
         pairs = _pairs;
 
@@ -70,8 +70,8 @@ contract UniswapCrossFlash {
 
         require(_mid > _return, "Require Profitability");
 
-        uint256 amount0Out = _token == DAI ? _loan : 0;
-        uint256 amount1Out = _token == WETH ? _loan : 0;
+        uint256 amount0Out = _token == TOKEN_0 ? _loan : 0;
+        uint256 amount1Out = _token == TOKEN_1 ? _loan : 0;
 
         bytes memory data = abi.encode(
 
@@ -123,16 +123,16 @@ contract UniswapCrossFlash {
         
         IERC20(_token).transfer(pairs[_end], _loan);
 
-        uint256 amount0Out = _token == WETH ? _mid : 0;
-        uint256 amount1Out = _token == DAI ? _mid : 0;
+        uint256 amount0Out = _token == TOKEN_1 ? _mid : 0;
+        uint256 amount1Out = _token == TOKEN_0 ? _mid : 0;
 
         IUniswapV2Pair(pairs[_end]).
         swap(amount0Out, amount1Out, address(this), new bytes(0));
 
-        if (_token == WETH) {
-            IERC20(DAI).transfer(pairs[_start], _return);
+        if (_token == TOKEN_1) {
+            IERC20(TOKEN_0).transfer(pairs[_start], _return);
         } else {
-            IERC20(WETH).transfer(pairs[_start], _return);
+            IERC20(TOKEN_1).transfer(pairs[_start], _return);
         }
         
 
